@@ -1,0 +1,4 @@
+HTTP 500 text/plain
+500 Internal Server Error
+
+Server got itself in trouble

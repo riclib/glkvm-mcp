@@ -66,7 +66,7 @@ detail, with file and line references into
 | Two-step login | approval on the device's own touchscreen, polled with `POST /api/auth/two_step_complete` |
 | Keyboard and mouse | WebSocket `/api/ws`: `key`, `mouse_button`, `mouse_move`, `mouse_wheel` events |
 | Screenshot | `GET /api/streamer/snapshot` (`preview`, `preview_max_width`, `preview_quality`) |
-| Read text | `GET /api/streamer/snapshot?ocr=1`, **the device does the OCR itself**, with optional crop |
+| Read text | local Tesseract on a snapshot; the device's own `snapshot?ocr=1` is disabled on shipped firmware 1.8.1 |
 | Which machine is active | `GET /api/switch` → `summary.active_port` (0–3); also pushed as `switch` events on the WebSocket |
 | Switch machine | `POST /api/switch/set_active?port=N` (0–3), or `set_active_prev` / `set_active_next` |
 | Name the inputs | `POST /api/switch/set_port_params` |
@@ -113,9 +113,12 @@ ported: every key goes down, waits at least 25 ms, then comes up with
 `finish=true`; modifiers wrap outside the main key; a watchdog releases
 anything held longer than 250 ms; disconnecting releases everything.
 
-**OCR on the device first.** The firmware OCRs a snapshot itself, with an
-optional crop. Local Tesseract (a subprocess, not a linked library) is the
-fallback if the device's OCR turns out to be poor or unavailable.
+**OCR locally, with the device's as an upgrade.** The 1.10.0 source can OCR a
+snapshot on the device, but on the shipped 1.8.1 firmware OCR is disabled and
+the call fails (verified 2026-10-26, see `docs/device-api.md`). So local
+Tesseract (a subprocess, not a linked library) does the reading. The server
+watches the WebSocket's `ocr` event and switches to the device's OCR if a
+firmware ever reports it enabled.
 
 **Destructive extras off by default.** ATX power and virtual media are not
 offered as tools unless the config turns them on. Keyboard and mouse already

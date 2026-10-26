@@ -1,0 +1,9 @@
+{
+ "event": {
+  "version": {
+   "major": 4,
+   "minor": 82
+  }
+ },
+ "event_type": "loop"
+}

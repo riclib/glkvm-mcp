@@ -1,0 +1,11 @@
+{
+ "event": {
+  "meta": {
+   "kvm": {},
+   "server": {
+    "host": "localhost.localdomain"
+   }
+  }
+ },
+ "event_type": "info"
+}

@@ -1,0 +1,27 @@
+{
+ "event": {
+  "summary": {
+   "active_id": "1.1",
+   "active_port": 0,
+   "synced": true
+  },
+  "usb_host": false,
+  "usb_otg": {
+   "links": [
+    true,
+    false,
+    true,
+    true
+   ]
+  },
+  "video": {
+   "links": [
+    true,
+    false,
+    true,
+    true
+   ]
+  }
+ },
+ "event_type": "switch"
+}

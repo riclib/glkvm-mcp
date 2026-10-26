@@ -1,0 +1,26 @@
+{
+ "event": {
+  "model": {
+   "scheme": {
+    "inputs": {},
+    "outputs": {}
+   },
+   "view": {
+    "header": {
+     "title": [
+      {
+       "text": "GPIO",
+       "type": "label"
+      }
+     ]
+    },
+    "table": []
+   }
+  },
+  "state": {
+   "inputs": {},
+   "outputs": {}
+  }
+ },
+ "event_type": "gpio"
+}

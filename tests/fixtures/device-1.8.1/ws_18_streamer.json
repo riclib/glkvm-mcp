@@ -1,0 +1,45 @@
+{
+ "event": {
+  "streamer": {
+   "encoder": {
+    "quality": 80,
+    "type": "RV1126-H264"
+   },
+   "h264": {
+    "bitrate": 2000,
+    "fps": 0,
+    "gop": 30,
+    "online": true
+   },
+   "hdmi": {
+    "out_signal": false,
+    "signal": false
+   },
+   "instance_id": "",
+   "sinks": {
+    "h264": {
+     "has_clients": true
+    },
+    "jpeg": {
+     "has_clients": false
+    }
+   },
+   "source": {
+    "captured_fps": 197,
+    "desired_fps": 0,
+    "online": true,
+    "real_resolution": "no_signal",
+    "resolution": {
+     "height": 1080,
+     "width": 1920
+    }
+   },
+   "stream": {
+    "clients": 0,
+    "clients_stat": {},
+    "queued_fps": 0
+   }
+  }
+ },
+ "event_type": "streamer"
+}

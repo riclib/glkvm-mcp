@@ -1,0 +1,10 @@
+{
+ "event": {
+  "enabled": false,
+  "langs": {
+   "available": [],
+   "default": []
+  }
+ },
+ "event_type": "ocr"
+}

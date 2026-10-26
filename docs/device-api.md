@@ -3,8 +3,14 @@
 Read out of GL.iNet's published firmware source,
 [gl-inet/glkvm](https://github.com/gl-inet/glkvm) at commit `3e8dd23`
 (tagged 1.10.0, 2026-08-11), on 2026-10-23. Paths below are relative to that
-repository. Nothing here has been checked against a real device yet: the
-[checklist at the end](#verify-on-hardware) is what to confirm first.
+repository. **Checked against the real device on 2026-10-26:** firmware
+**1.8.1 release2** (kvmd 4.82, ustreamer 6.13, kernel 6.1.141, Rockchip
+RV1126B). The device's own update check calls 1.8.1 the latest while GL.iNet's
+firmware page lists 1.10.1; the source for 1.8.1 is not published (tags stop
+at v1.5.0release1), so the notes stay read against 1.10.0 and each claim is
+marked below with what the device actually did. Responses captured that day,
+scrubbed, are in `tests/fixtures/device-1.8.1/`. The
+[checklist at the end](#verify-on-hardware) says what is still open.
 
 GLKVM is a fork of PiKVM's kvmd, so most of PiKVM's API applies. Everything
 below is under `https://<device>/api/`: nginx strips the prefix and proxies to
@@ -20,7 +26,12 @@ kvmd (`configs/nginx/kvmd.ctx-server.conf`, `location /api`).
   sends. We send a bounded value.
 - On success: JSON `{"token": …, "failed_since_last_success": …}` and an
   `auth_token` cookie. A token is 64 hex characters
-  (`valid_auth_token`, same file).
+  (`valid_auth_token`, same file). **On 1.8.1** the reply body is
+  `{"token": …}` only, no `failed_since_last_success`; the cookie is
+  `auth_token`, path `/`, with no `Secure` flag and no `Expires` even with
+  `expire=3600`, so the server-side lifetime is the only bound. Login took
+  65 ms; two-step was off out of the box. `POST /api/auth/logout` answered
+  200 and `GET /api/auth/check` 403 afterwards.
 - Login is rate limited: `429` with `remaining_time` when tripped.
 - Logging in records the User-Agent (device type and browser) in the device
   log. Send an honest one, e.g. `glkvm-mcp/<version>`.
@@ -85,15 +96,24 @@ JPEG of the active input.
   `preview_quality` (default 80) asks for a scaled-down copy.
 - `allow_offline=1` returns a frame even with no signal.
 - Without a live frame it returns an `UnavailableError`.
+- **On 1.8.1**, with no machine showing video, `preview=1&allow_offline=1`
+  returned an 800-px "NO LIVE VIDEO" JPEG once and, a minute later, a plain
+  text `500 Internal Server Error` while the streamer was restarting (the
+  WebSocket pushed five `streamer` events in a row). Treat a 500 here as
+  transient and retry; `/api/streamer` itself answered fine both times.
+  The streamer reports `h264`, `h265`, `venc_mode` and `zero_delay`, no
+  `resolution`, and `desired_fps` up to 70.
 
-**The device does OCR itself.** `ocr=1` on the same endpoint returns JSON
-instead of a JPEG. It takes `ocr_langs` and a crop: `ocr_left`, `ocr_top`,
-`ocr_right` and `ocr_bottom`, with -1 meaning no limit.
-`GET /api/streamer/ocr` reports the engine and its available languages. One
-code comment mentions an RKNN (Rockchip NPU) mode, where the language list is
-empty and not validated. The shape of the OCR result is not in this
-repository's handler; capture one from the device. If the result carries word
-positions, there is no need for local Tesseract.
+**OCR on the device is off as shipped.** The 1.10.0 source has `ocr=1` on the
+same endpoint returning JSON instead of a JPEG, with `ocr_langs` and a crop
+(`ocr_left`, `ocr_top`, `ocr_right`, `ocr_bottom`, -1 for no limit), and
+`GET /api/streamer/ocr` reporting the engine and its languages. **On 1.8.1**
+the WebSocket's `ocr` event says `{"enabled": false, "langs": {"default": [],
+"available": []}}` and `snapshot?ocr=1` answers a plain text
+`500 Internal Server Error` (`tests/fixtures/device-1.8.1/snapshot_ocr_response.txt`).
+So local Tesseract is the path, not the fallback, until a firmware enables it.
+Keep the device call behind a check of the `ocr` event so it can take over if
+a later firmware turns it on.
 
 ## Switching between the four machines
 
@@ -128,6 +148,22 @@ Things to know:
 - `model.ports` and `model.units` start empty in the state code. Where the
   port names set with `set_port_params` show up has to be read from a real
   response.
+- **The real response on 1.8.1** (`tests/fixtures/device-1.8.1/switch.json`,
+  5.7 KB, 33 ms): top-level `atx`, `beacons`, `colors`, `edids`, `model`,
+  `summary`, `usb_host`, `usb_otg`, `video`. `model.ports` has four entries,
+  `id` `1.1`–`1.4`, `channel` 0–3, `unit` 0, `name` `""` (so names live
+  there), `video.dummy` true and per-port ATX click delays;
+  `model.firmware.version` is 8. `summary` is
+  `{"active_port": 0, "active_id": "1.1", "synced": true}`. `video.links` and
+  `usb_otg.links` are four booleans, one per port (that day
+  `[true, false, true, true]`: three machines cabled, port 2 empty), and
+  `usb_host` is false. `edids.all` carries a default "PiKVM V3" EDID. The
+  WebSocket pushes the same shape as a `switch` event on connect, and
+  afterwards a short form with only `summary`, `video`, `usb_otg` and
+  `usb_host`. `/api/switch/state` is not a route (404).
+- A `video.links` true with "NO LIVE VIDEO" on the active port happened
+  together, so a link means a cable is detected, not that the machine is
+  sending a picture.
 
 ## Not used, but present
 
@@ -142,25 +178,34 @@ These are in kvmd but out of scope unless a config turns them on:
 
 ## Verify on hardware
 
-Before writing code against the real device, in this order:
+Before writing code against the real device, in this order. Ticked items were
+done on 2026-10-26 against firmware 1.8.1 release2, read-only, with the
+session logged out afterwards.
 
-1. **Firmware version.** Check it in the web UI. If it is not 1.10.x, re-read
-   this file against the matching source.
-2. **`/api/` is reachable.** `curl -k https://<device>/api/auth/check` should
-   answer 401 or 403, not 404. kvm-pilot reports a 404 on all of `/api/*` on
-   some GLKVM firmware until an nginx block is uncommented, and says a firmware
-   upgrade can revert the edit.
-3. **Log in** with a bounded `expire`, and record the `auth_token` cookie.
-4. **`GET /api/switch`.** Save the whole response into this repo as a test
-   fixture. It answers where port names live, what the signal state looks like,
-   and whether the model block is filled.
-5. **Switch by API.** `set_active?port=1`, timing how long until the `switch`
-   event arrives and until a fresh snapshot shows the new machine.
-6. **The WebSocket** with the cookie only, no token in the URL.
-7. **One OCR snapshot.** Save the JSON as a fixture and judge its word
-   positions against local Tesseract on the same frame.
-8. **The stuck-key bug.** Type a long string at full speed with and without
-   the workaround.
-9. **Two-step login,** if it is turned on.
-10. **The certificate.** Its fingerprint, and whether it survives a reboot and
-    a firmware update. That decides how pinning works.
+1. [x] **Firmware version.** 1.8.1 release2, which the device calls latest.
+   Its source is not published, so this file stays read against 1.10.0 and
+   every claim is verified on the device instead.
+2. [x] **`/api/` is reachable.** `/api/auth/check` answers 401 unauthenticated,
+   and an unknown `/api/` path answers 404, so a 401 on a route means the
+   route exists. No nginx edit was needed.
+3. [x] **Log in** with a bounded `expire`: see Authentication for what 1.8.1
+   returns.
+4. [x] **`GET /api/switch`.** Fixture saved; see Switching for the shape.
+5. [ ] **Switch by API.** `set_active?port=1`, timing how long until the
+   `switch` event arrives and until a fresh snapshot shows the new machine.
+   Needs permission in the session that does it: three machines are cabled.
+6. [x] **The WebSocket** with the cookie only, no token in the URL: 101, and
+   it pushed `loop`, `gpio`, `ocr`, `info` (four parts), `hid_keymaps`,
+   `switch`, `streamer`, `hid`, `msd`, `fingerbot` and `repeater` on connect.
+7. [x] **One OCR snapshot.** Not available: OCR is disabled on 1.8.1 (see
+   Screenshots and OCR). Local Tesseract is the path.
+8. [ ] **The stuck-key bug.** Type a long string at full speed with and without
+   the workaround. 1.8.1 is inside the affected range, so the workaround is
+   required either way; this only measures it.
+9. [ ] **Two-step login.** Off out of the box; test when it is turned on.
+10. [~] **The certificate.** Self-signed, `CN=localhost`, `O=GLKVM`, valid
+    1970-01-01 to 1979-12-30 (generated with the clock at epoch, so every
+    verifier calls it expired); SHA-256
+    `39A42EB639A429832E8AE3F4A810DD38EA06752E48255279616A00557CB7A135`, the
+    same on the LAN and over Tailscale. Pinning by fingerprint is the only
+    option. Whether it survives a reboot or a firmware update is still open.
