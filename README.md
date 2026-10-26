@@ -105,8 +105,12 @@ so the 7–8 second switch is invisible to the agent.
   never expires, and logs out on exit.
 - The token travels as a cookie, never in a URL.
 - Two-step login works: the server waits while you approve it on the touchscreen.
-- TLS is pinned to the device's own certificate, recorded on first contact, not
-  simply switched off.
+- TLS is verified, not switched off. Firmware 1.10.1 takes a custom
+  certificate, so the normal case is a device certificate from a CA the
+  machine already trusts (a mkcert root, here), verified like any other. A
+  device still on its default self-signed certificate is pinned by the
+  fingerprint recorded on first contact; that default survives firmware
+  updates, as checked across 1.8.1 to 1.10.1.
 
 **Keyboard that does not stick.** The workaround from the Python server,
 ported: every key goes down, waits at least 25 ms, then comes up with

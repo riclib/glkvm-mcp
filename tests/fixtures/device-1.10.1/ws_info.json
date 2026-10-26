@@ -1,0 +1,8 @@
+{
+ "event": {
+  "auth": {
+   "enabled": true
+  }
+ },
+ "event_type": "info"
+}

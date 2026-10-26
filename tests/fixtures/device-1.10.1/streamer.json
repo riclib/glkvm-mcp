@@ -1,0 +1,40 @@
+{
+ "ok": true,
+ "result": {
+  "features": {
+   "h264": true,
+   "h265": true,
+   "quality": true,
+   "resolution": false,
+   "venc_mode": true,
+   "zero_delay": true
+  },
+  "limits": {
+   "desired_fps": {
+    "max": 70,
+    "min": 0
+   },
+   "h264_bitrate": {
+    "max": 20000,
+    "min": 0
+   },
+   "h264_gop": {
+    "max": 240,
+    "min": 0
+   }
+  },
+  "params": {
+   "desired_fps": 40,
+   "h264_bitrate": 2000,
+   "h264_gop": 30,
+   "quality": 80,
+   "venc_mode": "normal",
+   "video_format": 0,
+   "zero_delay": true
+  },
+  "snapshot": {
+   "saved": null
+  },
+  "streamer": null
+ }
+}

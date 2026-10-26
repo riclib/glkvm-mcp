@@ -1,0 +1,8 @@
+HTTP 503 application/json
+{
+    "ok": false,
+    "result": {
+        "error": "UnavailableError",
+        "error_msg": "Service Unavailable"
+    }
+}

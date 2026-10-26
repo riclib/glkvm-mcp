@@ -3,13 +3,14 @@
 Read out of GL.iNet's published firmware source,
 [gl-inet/glkvm](https://github.com/gl-inet/glkvm) at commit `3e8dd23`
 (tagged 1.10.0, 2026-08-11), on 2026-10-23. Paths below are relative to that
-repository. **Checked against the real device on 2026-10-26:** firmware
-**1.8.1 release2** (kvmd 4.82, ustreamer 6.13, kernel 6.1.141, Rockchip
-RV1126B). The device's own update check calls 1.8.1 the latest while GL.iNet's
-firmware page lists 1.10.1; the source for 1.8.1 is not published (tags stop
-at v1.5.0release1), so the notes stay read against 1.10.0 and each claim is
-marked below with what the device actually did. Responses captured that day,
-scrubbed, are in `tests/fixtures/device-1.8.1/`. The
+repository. **Checked against the real device on 2026-10-26**, first on the
+shipped firmware **1.8.1 release2** and again after its upgrade to
+**1.10.1** the same day (both report kvmd 4.82, ustreamer 6.13, kernel
+6.1.141, Rockchip RV1126B; GL.iNet's firmware number is not kvmd's). The
+source for neither is published (tags stop at v1.5.0release1), so the notes
+stay read against 1.10.0 and each claim is marked below with what the device
+actually did. Responses captured that day, scrubbed, are in
+`tests/fixtures/device-1.8.1/` and `tests/fixtures/device-1.10.1/`. The
 [checklist at the end](#verify-on-hardware) says what is still open.
 
 GLKVM is a fork of PiKVM's kvmd, so most of PiKVM's API applies. Everything
@@ -31,7 +32,9 @@ kvmd (`configs/nginx/kvmd.ctx-server.conf`, `location /api`).
   `auth_token`, path `/`, with no `Secure` flag and no `Expires` even with
   `expire=3600`, so the server-side lifetime is the only bound. Login took
   65 ms; two-step was off out of the box. `POST /api/auth/logout` answered
-  200 and `GET /api/auth/check` 403 afterwards.
+  200 and `GET /api/auth/check` 403 afterwards. **On 1.10.1** the reply is
+  `{"failed_since_last_success": 0, "token": …}`, as the source says; the
+  cookie is unchanged. The server must accept both shapes.
 - Login is rate limited: `429` with `remaining_time` when tripped.
 - Logging in records the User-Agent (device type and browser) in the device
   log. Send an honest one, e.g. `glkvm-mcp/<version>`.
@@ -113,7 +116,18 @@ the WebSocket's `ocr` event says `{"enabled": false, "langs": {"default": [],
 `500 Internal Server Error` (`tests/fixtures/device-1.8.1/snapshot_ocr_response.txt`).
 So local Tesseract is the path, not the fallback, until a firmware enables it.
 Keep the device call behind a check of the `ocr` event so it can take over if
-a later firmware turns it on.
+a later firmware turns it on. **On 1.10.1** it is still off, but the event now
+names the engine: `{"enabled": false, "engine": "tesseract", "langs": …}`,
+and `snapshot?ocr=1` answers a JSON `503 UnavailableError` instead of the
+plain 500. Right after a reboot every snapshot answered that 503 while
+`/api/streamer` reported `"streamer": null`, so "no streamer yet" and "OCR
+off" look the same from this endpoint; read the `ocr` event to tell them
+apart.
+
+**New on 1.10.1:** the WebSocket also pushes `serial`
+(`{"exist": false, "devices": []}`) and `recorder`
+(`{"recording": false, "elapsed_seconds": 0, "file": ""}`) events, and sends
+its whole state dump twice on connect. Both subsystems are out of scope.
 
 ## Switching between the four machines
 
@@ -164,6 +178,15 @@ Things to know:
 - A `video.links` true with "NO LIVE VIDEO" on the active port happened
   together, so a link means a cable is detected, not that the machine is
   sending a picture.
+- **Switching, measured on 1.8.1** (sequence 0 → 2 → 3 → 0):
+  `POST set_active` blocks for about 2.5 s and answers `{"ok": true,
+  "result": {}}`; the `switch` event showing the new `active_port` arrived
+  2.6 s after the POST; `GET /api/switch` agreed at once; the first 200
+  snapshot of the new machine came 2.3–2.6 s after the POST. Port 3's
+  machine gave only 503s for 15 s (no picture), and the event for the
+  return to port 0 never arrived within 10 s although the GET showed it, so
+  confirm a switch with a GET rather than waiting on the event alone.
+  `set_active?port=7` answered ok and changed nothing, as the source said.
 
 ## Not used, but present
 
@@ -191,21 +214,30 @@ session logged out afterwards.
 3. [x] **Log in** with a bounded `expire`: see Authentication for what 1.8.1
    returns.
 4. [x] **`GET /api/switch`.** Fixture saved; see Switching for the shape.
-5. [ ] **Switch by API.** `set_active?port=1`, timing how long until the
-   `switch` event arrives and until a fresh snapshot shows the new machine.
-   Needs permission in the session that does it: three machines are cabled.
+5. [x] **Switch by API.** Done on 1.8.1 with permission; timings under
+   Switching. About 2.5 s end to end.
 6. [x] **The WebSocket** with the cookie only, no token in the URL: 101, and
    it pushed `loop`, `gpio`, `ocr`, `info` (four parts), `hid_keymaps`,
    `switch`, `streamer`, `hid`, `msd`, `fingerbot` and `repeater` on connect.
 7. [x] **One OCR snapshot.** Not available: OCR is disabled on 1.8.1 (see
    Screenshots and OCR). Local Tesseract is the path.
 8. [ ] **The stuck-key bug.** Type a long string at full speed with and without
-   the workaround. 1.8.1 is inside the affected range, so the workaround is
-   required either way; this only measures it.
+   the workaround. Approved, but not run: every cabled machine was at its
+   lock screen, and a password field is the one place not to type into.
+   Needs an unlocked machine with a text field focused. 1.10.1 is past the
+   1.9.0 cut-off in the issue, so this now also tells whether the workaround
+   is still needed.
 9. [ ] **Two-step login.** Off out of the box; test when it is turned on.
-10. [~] **The certificate.** Self-signed, `CN=localhost`, `O=GLKVM`, valid
-    1970-01-01 to 1979-12-30 (generated with the clock at epoch, so every
-    verifier calls it expired); SHA-256
+10. [x] **The certificate.** The default is self-signed, `CN=localhost`,
+    `O=GLKVM`, valid 1970-01-01 to 1979-12-30 (generated with the clock at
+    epoch, so every verifier calls it expired), SHA-256
     `39A42EB639A429832E8AE3F4A810DD38EA06752E48255279616A00557CB7A135`, the
-    same on the LAN and over Tailscale. Pinning by fingerprint is the only
-    option. Whether it survives a reboot or a firmware update is still open.
+    same on the LAN and over Tailscale, and **it survived the upgrade from
+    1.8.1 to 1.10.1 unchanged**, so a pin on it holds across updates. But
+    1.10.1 adds a **custom TLS certificate** upload (Settings, "TLS
+    Certificate", type Custom: a PEM certificate with an optional CA chain,
+    and the private key). Ricardo's device now serves a certificate from his
+    mkcert root with SANs for the tailnet name, the short name and both IPs,
+    which every machine that trusts that root verifies normally. So the
+    server verifies against a CA file first, and pins a fingerprint only for
+    a device still on its default certificate.

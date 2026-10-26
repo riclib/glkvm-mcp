@@ -1,0 +1,7 @@
+{
+ "event": {
+  "connected": false,
+  "enable": false
+ },
+ "event_type": "repeater"
+}

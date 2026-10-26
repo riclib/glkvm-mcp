@@ -1,0 +1,11 @@
+{
+ "event": {
+  "enabled": false,
+  "engine": "tesseract",
+  "langs": {
+   "available": [],
+   "default": []
+  }
+ },
+ "event_type": "ocr"
+}
